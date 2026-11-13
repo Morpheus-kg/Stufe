@@ -102,8 +102,8 @@ router.post(
     const hash = await hashPassword(pwdToHash);
     try {
       const result = await query(
-        'INSERT INTO users (username, role, password_hash, must_change_password, created_at, updated_at) ' +
-          'VALUES (?, ?, ?, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP()) /* admin-scope */',
+        'INSERT INTO users (username, role, password_hash, must_change_password, created_at) ' +
+          'VALUES (?, ?, ?, 1, UTC_TIMESTAMP()) /* admin-scope */',
         [data.username, data.role, hash],
       );
       res.status(201).json({
