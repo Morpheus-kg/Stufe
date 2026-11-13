@@ -1,0 +1,129 @@
+/* German Trainer — Design Tokens (единственное место с raw-значениями) */
+:root {
+  /* Фон и поверхности */
+  --bg: #FAFAF7;
+  --surface: #FFFFFF;
+  --surface-2: #F3F2EE;
+
+  /* Текст */
+  --text: #1F2328;
+  --text-2: #5F6368;
+  --text-3: #8A8D91;
+
+  /* Границы */
+  --border: #E6E4DE;
+  --border-strong: #CFCCC4;
+
+  /* Основной (чернильный) */
+  --primary: #1F2328;
+  --on-primary: #FFFFFF;
+
+  /* Акцент (терракота) */
+  --accent: #B4532A;
+  --accent-soft: #F6E7DE;
+  --on-accent: #FFFFFF;
+
+  /* Статусы */
+  --success: #3F7A57;
+  --success-soft: #E4F0E8;
+  --danger: #B3453D;
+  --danger-soft: #F7E4E2;
+  --warn: #9A6A12;
+  --warn-soft: #F5EBD3;
+
+  /* Артикли (сохраняем для Review) */
+  --der: #1F5FBF;
+  --die: #B3453D;
+  --das: #3F7A57;
+
+  /* Скругления */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+
+  /* Шаг сетки */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+
+  /* Типографика */
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --fs-xs: 12px;
+  --fs-sm: 14px;
+  --fs-md: 16px;
+  --fs-lg: 20px;
+  --fs-xl: 28px;
+  --fs-term: 44px;
+  --lh: 1.5;
+  --lh-read: 1.7;
+
+  /* Анимация */
+  --dur: 150ms;
+
+  /* Тени (только для bottom-sheet) */
+  --shadow-sheet: 0 -4px 24px rgba(0, 0, 0, .08);
+
+  /* Минимальная цель нажатия */
+  --tap: 44px;
+}
+
+/* Тёмная тема */
+:root[data-theme="dark"] {
+  --bg: #111312;
+  --surface: #181A19;
+  --surface-2: #1F2221;
+  --text: #ECEBE6;
+  --text-2: #A6A6A0;
+  --text-3: #7C7D78;
+  --border: #2A2D2B;
+  --border-strong: #3A3E3B;
+  --primary: #ECEBE6;
+  --on-primary: #111312;
+  --accent: #E58B5C;
+  --accent-soft: #3A271D;
+  --on-accent: #111312;
+  --success: #6FB48A;
+  --success-soft: #1D2D24;
+  --danger: #E07A70;
+  --danger-soft: #3A2220;
+  --warn: #D4A24A;
+  --warn-soft: #33290F;
+  --der: #7AB0FF;
+  --die: #E07A70;
+  --das: #6FB48A;
+  --shadow-sheet: 0 -4px 24px rgba(0, 0, 0, .4);
+}
+
+/* Системная тёмная — те же значения */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111312;
+    --surface: #181A19;
+    --surface-2: #1F2221;
+    --text: #ECEBE6;
+    --text-2: #A6A6A0;
+    --text-3: #7C7D78;
+    --border: #2A2D2B;
+    --border-strong: #3A3E3B;
+    --primary: #ECEBE6;
+    --on-primary: #111312;
+    --accent: #E58B5C;
+    --accent-soft: #3A271D;
+    --on-accent: #111312;
+    --success: #6FB48A;
+    --success-soft: #1D2D24;
+    --danger: #E07A70;
+    --danger-soft: #3A2220;
+    --warn: #D4A24A;
+    --warn-soft: #33290F;
+    --der: #7AB0FF;
+    --die: #E07A70;
+    --das: #6FB48A;
+    --shadow-sheet: 0 -4px 24px rgba(0, 0, 0, .4);
+  }
+}
+

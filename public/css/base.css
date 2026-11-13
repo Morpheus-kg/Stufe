@@ -1,0 +1,107 @@
+/* German Trainer — Base: reset, typography, layout, focus */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: var(--fs-md) / var(--lh) var(--font);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body { transition: background var(--dur), color var(--dur); }
+}
+
+h1 {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0 0 var(--s5);
+}
+
+h2 {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--s3);
+}
+
+h3 {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  margin: var(--s5) 0 var(--s2);
+}
+
+p { margin: 0 0 var(--s2); }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Focus — видимый для клавиатуры */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Прокрутка */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--radius-pill); }
+
+/* Основной контейнер приложения */
+#app {
+  max-width: 640px;
+  margin: 0 auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+#view {
+  padding: var(--s4) var(--s4) calc(84px + env(safe-area-inset-bottom));
+  outline: none;
+}
+
+/* Утилиты */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.muted   { color: var(--text-2); }
+.muted-3 { color: var(--text-3); }
+.center  { text-align: center; }
+.stack > * + * { margin-top: var(--s3); }
+.row     { display: flex; gap: var(--s2); align-items: center; }
+.wrap    { flex-wrap: wrap; }
+.error   { color: var(--danger); font-weight: 600; }
+
+/* Секция-разделитель */
+.section-header {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: var(--s5) 0 var(--s2);
+}
+

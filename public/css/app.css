@@ -1,0 +1,292 @@
+/* German Trainer — app.css: импорт системы + вью-специфические правила */
+@import url("tokens.css");
+@import url("base.css");
+@import url("components.css");
+
+/* ═══ МАРШРУТЫ / ОБОЛОЧКА ══════════════════════════════════════════════════ */
+
+body[data-route="review"] #view { padding-bottom: var(--s5); }
+body[data-route="login"]  #view { padding-top: 12vh; }
+body[data-route="review"] #tabbar { display: none; }
+
+/* ═══ СЕГОДНЯ ═══════════════════════════════════════════════════════════════ */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s4) var(--s3);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.stat b {
+  display: block;
+  font-size: var(--fs-xl);
+  color: var(--accent);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.stat span { font-size: var(--fs-xs); color: var(--text-3); }
+
+/* ═══ ПОВТОРЕНИЕ ════════════════════════════════════════════════════════════ */
+
+.review-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+}
+
+/* Прогресс-бар в review: 4px вверху */
+.review-top + .progress { margin-bottom: var(--s4); }
+
+.big-term {
+  font-size: var(--fs-term);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.article-der { color: var(--der); }
+.article-die { color: var(--die); }
+.article-das { color: var(--das); }
+
+.translation  { font-size: var(--fs-lg); color: var(--text-2); }
+.prompt       { font-size: var(--fs-xl); font-weight: 600; margin: var(--s3) 0; overflow-wrap: anywhere; }
+.prompt.cloze { font-size: var(--fs-lg); font-weight: 500; line-height: var(--lh-read); }
+.blank        { color: var(--accent); font-weight: 700; margin: 0 2px; }
+.example      { border-left: 2px solid var(--border-strong); padding-left: var(--s3); color: var(--text-2); font-size: var(--fs-sm); }
+.hint         { min-height: 1.4em; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: var(--fs-sm); color: var(--text-3); }
+.answer       { text-align: center; font-size: var(--fs-lg); }
+
+.keypad   { display: flex; gap: var(--s2); justify-content: center; flex-wrap: wrap; }
+.key      { min-width: var(--tap); font-size: var(--fs-lg); font-weight: 500; }
+
+.actions      { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: var(--s2); }
+.article-row  { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s2); }
+.article-btn  { min-height: 56px; font-size: var(--fs-lg); font-weight: 700; border-width: 2px; }
+.art-der      { color: var(--der); border-color: var(--der); }
+.art-die      { color: var(--die); border-color: var(--die); }
+.art-das      { color: var(--das); border-color: var(--das); }
+
+.next-btn { margin-top: var(--s3); }
+
+/* ═══ КАРТОЧКИ / STAGING ════════════════════════════════════════════════════ */
+
+.list-item {
+  /* переопределяем компонент: list-item без border-radius (список-строки) */
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.list-item:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+.list-item:last-child  { border-radius: 0 0 var(--radius) var(--radius); border-bottom: 1px solid var(--border); }
+
+/* ═══ ТЕКСТЫ / ЧИТАЛКА / АУДИРОВАНИЕ ═══════════════════════════════════════ */
+
+.reading-text,
+.reader-line {
+  font-size: 18px;
+  line-height: var(--lh-read);
+  max-width: 62ch;
+  margin-bottom: var(--s3);
+}
+
+.reading-text mark,
+.reader-line .word {
+  cursor: pointer;
+  text-underline-offset: 3px;
+}
+
+/* Варианты ответа в читалке */
+.quiz-option {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-sm);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  width: 100%;
+  transition: background var(--dur), border-color var(--dur);
+}
+.quiz-option:hover         { background: var(--surface-2); }
+.quiz-option[aria-selected="true"],
+.quiz-option.selected      { border-color: var(--accent); background: var(--accent-soft); }
+.quiz-option.correct       { border-color: var(--success); background: var(--success-soft); }
+.quiz-option.wrong         { border-color: var(--danger);  background: var(--danger-soft); }
+
+/* ═══ ПЕРЕВОД / ПЕРЕСКАЗ / ПИСЬМО / ГОВОРЕНИЕ / ЧИСЛА ══════════════════════ */
+
+.task-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.task-screen .task-prompt {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: var(--lh-read);
+}
+
+.score-big {
+  font-size: var(--fs-term);
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.criteria-list { list-style: none; margin: 0; padding: 0; }
+.criteria-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+.criteria-list li:last-child { border-bottom: 0; }
+
+.criteria-bar { flex: 1; }
+
+/* ═══ СТАТИСТИКА / НАВЫКИ ═══════════════════════════════════════════════════ */
+
+.stat-num  { font-size: var(--fs-xl); font-weight: 700; color: var(--text); }
+.stat-label { font-size: var(--fs-xs); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* Кольцо (SVG ring снаружи) */
+.ring-wrap { display: flex; align-items: center; gap: var(--s5); }
+
+/* Тонкий бар статистики */
+.thin-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.thin-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+}
+
+/* ═══ НАСТРОЙКИ / ПРОФИЛЬ / АДМИН ══════════════════════════════════════════ */
+
+/* Секции как in settings.js (gt-se-card → card-box) */
+.gt-se { max-width: 720px; margin: 0 auto; padding: var(--s3) var(--s3) var(--s6); }
+.gt-se h1 { font-size: var(--fs-xl); margin: var(--s2) 0 var(--s3); }
+.gt-se h2 { font-size: var(--fs-md); margin: 0 0 var(--s2); }
+.gt-se h3 { font-size: var(--fs-sm); margin: var(--s4) 0 var(--s2); color: var(--text-2); }
+
+.gt-se-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s4);
+  margin: 0 0 var(--s3);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.gt-se-field { margin: 0 0 var(--s3); }
+.gt-se-field label { display: block; margin: 0 0 var(--s1); font-weight: 500; font-size: var(--fs-sm); color: var(--text-2); }
+
+.gt-se input[type=number],
+.gt-se input[type=date],
+.gt-se select {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: var(--tap);
+  font-size: var(--fs-md);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.gt-se input[type=file] {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  margin: 0 0 var(--s2);
+  font-size: var(--fs-md);
+  color: var(--text-2);
+}
+
+.gt-se button {
+  min-height: var(--tap);
+  font-size: var(--fs-md);
+  padding: var(--s2) var(--s4);
+  margin: var(--s1) var(--s2) var(--s1) 0;
+  cursor: pointer;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  transition: background var(--dur), border-color var(--dur);
+}
+.gt-se button:hover    { background: var(--surface-2); }
+.gt-se button:disabled { opacity: .4; cursor: default; }
+
+.gt-se-check,
+.gt-se-radio {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  font-size: var(--fs-md);
+}
+.gt-se-check input,
+.gt-se-radio input { width: 20px; height: 20px; flex: 0 0 auto; accent-color: var(--accent); }
+
+.gt-se-muted { color: var(--text-3); font-size: var(--fs-sm); }
+.gt-se-msg   { margin: var(--s2) 0; min-height: 1.2em; font-size: var(--fs-sm); }
+.gt-se-err   { color: var(--danger); }
+.gt-se-list  { margin: var(--s2) 0; padding-left: var(--s5); font-size: var(--fs-sm); }
+.gt-se progress { width: 100%; height: 10px; margin: var(--s2) 0; accent-color: var(--accent); }
+
+/* ═══ ЛОГИН / СМЕНА ПАРОЛЯ ══════════════════════════════════════════════════ */
+
+.login-wrap {
+  max-width: 360px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.login-wrap h1 {
+  font-size: var(--fs-xl);
+  text-align: center;
+  margin-bottom: var(--s2);
+}
+
+/* ═══ ПРАКТИКА (выравнивание по токенам, без реструктуризации) ═════════════ */
+
+/* Таблица практики */
+.practice-table th,
+.practice-table td { padding: var(--s2) var(--s3); }

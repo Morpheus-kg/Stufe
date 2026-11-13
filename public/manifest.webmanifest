@@ -1,0 +1,26 @@
+{
+  "name": "German Trainer",
+  "short_name": "German",
+  "description": "Личный тренажёр немецкой лексики к Goethe B2",
+  "lang": "ru",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1f3a5f",
+  "theme_color": "#1f3a5f",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

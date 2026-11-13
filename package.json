@@ -1,0 +1,28 @@
+{
+  "name": "german-trainer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "German Trainer — личное PWA для изучения немецкой лексики (Goethe B2)",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test",
+    "check:scope": "node scripts/check_scope.mjs"
+  },
+  "dependencies": {
+    "cookie-parser": "1.4.7",
+    "express": "4.22.3",
+    "express-rate-limit": "8.7.2",
+    "helmet": "8.3.0",
+    "mysql2": "3.24.6",
+    "ts-fsrs": "5.4.2",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "dotenv": "18.0.9"
+  }
+}
