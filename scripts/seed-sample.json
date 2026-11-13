@@ -1,0 +1,146 @@
+[
+    {
+        "term": "das Haus",
+        "translation": "дом",
+        "example": "Das ist ein schönes Haus.",
+        "example_translation": "Это красивый дом.",
+        "type": "word"
+    },
+    {
+        "term": "Guten Morgen",
+        "translation": "Доброе утро",
+        "example": "Guten Morgen allerseits!",
+        "example_translation": "Доброе утро всем!",
+        "type": "phrase"
+    },
+    {
+        "term": "Katz und Maus spielen",
+        "translation": "играть в кошки-мышки",
+        "example": "Sie spielen Katz und Maus miteinander.",
+        "example_translation": "Они играют друг с другом в кошки-мышки.",
+        "type": "idiom"
+    },
+    {
+        "term": "Herausforderung",
+        "article": "die",
+        "plural": "Herausforderungen",
+        "pos": "noun",
+        "translation": "вызов, сложная задача",
+        "grammar": "f, -, -en",
+        "example": "Das Projekt ist eine große Herausforderung.",
+        "example_translation": "Проект — это большой вызов.",
+        "example_cloze": "Das Projekt ist eine große ____.",
+        "cloze_answer": "Herausforderung",
+        "level": "B2",
+        "topic": "Arbeit",
+        "source": "manual",
+        "check_flag": false,
+        "enriched": true,
+        "active": true
+    },
+    {
+        "term": "  DIE  HERAUSFORDERUNG  ",
+        "translation": "вызов (дубликат)"
+    },
+    {
+        "term": "  Haus  ",
+        "article": "das",
+        "translation": "дом (жилище)",
+        "plural": "Häuser"
+    },
+    {
+        "term": "die Armut (in Armut aufwachsen)",
+        "translation": "бедность (расти в бедности)",
+        "example": "Viele Kinder wachsen in Armut auf.",
+        "example_translation": "Многие дети растут в бедности."
+    },
+    {
+        "term": "laufen (lief, ist gelaufen)",
+        "translation": "бежать, идти",
+        "example": "Er ist schnell gelaufen.",
+        "example_translation": "Он быстро побежал."
+    },
+    {
+        "term": "fahren (ist gefahren)",
+        "translation": "ехать, водить",
+        "example": "Er ist nach Berlin gefahren.",
+        "example_translation": "Он поехал в Берлин."
+    },
+    {
+        "term": "schön",
+        "translation": "красивый",
+        "example": "Das Wetter ist heute schön.",
+        "example_translation": "Погода сегодня красивая."
+    },
+    {
+        "term": "schon",
+        "translation": "уже",
+        "example": "Ich bin schon da.",
+        "example_translation": "Я уже здесь."
+    },
+    {
+        "term": "der Bär",
+        "translation": "медведь",
+        "example": "Der Bär schläft im Winter.",
+        "example_translation": "Медведь спит зимой."
+    },
+    {
+        "term": "die Bar",
+        "translation": "бар",
+        "example": "Wir treffen uns in der Bar.",
+        "example_translation": "Мы встречаемся в баре."
+    },
+    {
+        "term": "",
+        "translation": "пустой термин"
+    },
+    {
+        "term": "a",
+        "translation": "слишком короткий термин"
+    },
+    {
+        "term": "der Tisch",
+        "translation": ""
+    },
+    {
+        "term": "das Buch",
+        "translation": "к"
+    },
+    null,
+    "невалидный элемент (строка вместо объекта)",
+    [
+        {
+            "term": "im Array",
+            "translation": "вложенный массив"
+        }
+    ],
+    {
+        "term": "DonaudampfschifffahrtselektrizitätenhauptbetriebswerkbauunterbeamtengesellschaftDonaudampfschifffahrtselektrizitätenhauptbetriebswerkbauunterbeamtengesellschaftDonaudampfschifffahrtselektrizitätenhauptbetriebswerkbauunterbeamtengesellschaftDonaudampfschifffahrtselektrizitätenhauptbetriebswerkbauunterbeamten",
+        "translation": "очень длинный термин (300 символов)"
+    },
+    {
+        "term": "jemandem auf die Nerven gehen",
+        "translation": "действовать кому-то на нервы",
+        "example": "Er geht mir auf die Nerven.",
+        "example_translation": "Он действует мне на нервы.",
+        "type": "idiom"
+    },
+    {
+        "term": "das Herz",
+        "translation": "сердце ❤️ — символ любви и жизни",
+        "example": "Mein Herz schlägt schnell.",
+        "example_translation": "Моё сердце бьётся быстро.",
+        "pos": "noun",
+        "article": "das",
+        "plural": "Herzen"
+    },
+    {
+        "term": "  guten   morgen  ",
+        "translation": "доброе утро (повтор)",
+        "example_translation": "С добрым утром!"
+    },
+    {
+        "term": "!SCHON!",
+        "translation": "уже (повтор)"
+    }
+]
