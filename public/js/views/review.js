@@ -678,7 +678,7 @@ export async function mount(container) {
         const current = basketLoad();
         if (!current.length) { btn.hidden = true; return; }
         const items = current.map((e, i) => ({
-          idx: i,
+          idx: i + 1,
           source: e.source.slice(0, 400),
           answer: e.answer.slice(0, 600),
           ...(e.reference ? { reference: e.reference.slice(0, 600) } : {}),
