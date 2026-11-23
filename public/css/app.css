@@ -43,6 +43,7 @@ body[data-route="review"] #tabbar { display: none; }
 
 .review-top {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: var(--s2);
@@ -83,6 +84,141 @@ body[data-route="review"] #tabbar { display: none; }
 .art-das      { color: var(--das); border-color: var(--das); }
 
 .next-btn { margin-top: var(--s3); }
+
+/* ═══ HANDS-FREE ГОЛОСОВОЙ РЕЖИМ ════════════════════════════════════════════ */
+
+.hf-stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-height: calc(100dvh - 150px);
+}
+
+.hf-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 220px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s1) var(--s3);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.hf-st-listening {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  animation: hf-pulse 1.4s ease-in-out infinite;
+}
+.hf-st-speaking {
+  background: var(--surface-2);
+  border-color: var(--der);
+  color: var(--der);
+}
+.hf-st-paused {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+@keyframes hf-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 35%, transparent); }
+  50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+
+.hf-transcript {
+  min-height: 1.5em;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.hf-status-note {
+  min-height: 1.3em;
+  font-size: var(--fs-sm);
+}
+
+.hf-commands {
+  font-size: var(--fs-xs);
+}
+
+.hf-controls {
+  display: flex;
+  gap: var(--s2);
+  padding-bottom: max(var(--s2), env(safe-area-inset-bottom));
+}
+
+.hf-big-btn {
+  min-height: 64px;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  flex: 1;
+}
+
+/* ═══ LANGUAGETOOL ПАНЕЛЬ ═══════════════════════════════════════════════════ */
+
+.lt-highlighted {
+  white-space: pre-wrap;
+  line-height: var(--lh-read);
+  padding: var(--s3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: var(--fs-md);
+}
+
+.lt-mark {
+  background: var(--warn-soft);
+  color: inherit;
+  border-bottom: 2px solid var(--warn);
+  border-radius: 3px;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.lt-mark.lt-cat-rechtschreibung {
+  background: var(--danger-soft);
+  border-bottom-color: var(--danger);
+}
+
+.lt-mark.lt-cat-artikel,
+.lt-mark.lt-cat-kasus,
+.lt-mark.lt-cat-praeposition {
+  background: var(--accent-soft);
+  border-bottom-color: var(--accent);
+}
+
+.lt-item {
+  transition: border-color var(--dur), background var(--dur);
+}
+
+.lt-item.lt-focus {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.lt-ok {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: var(--text);
+}
+
+.lt-degraded {
+  background: var(--surface-2);
+}
 
 /* ═══ КАРТОЧКИ / STAGING ════════════════════════════════════════════════════ */
 

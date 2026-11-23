@@ -1,6 +1,7 @@
 // Оболочка: хеш-роутер, тема, нижняя панель вкладок, общие помощники UI (h, toast, navigate, ...)
 import { me, getSettings } from './api.js';
-import { speak, setPreferredVoice } from './tts.js';
+import { setPreferredVoice } from './tts.js';
+import { audioPlayer } from './services/audio_player.js';
 import { ICON_TODAY, ICON_CARDS, ICON_PRACTICE, ICON_STATS, ICON_MORE } from './ui/icons.js';
 
 export const POS_RU = {
@@ -67,9 +68,18 @@ export function navigate(hash) {
   else location.hash = hash;
 }
 
-/** Озвучка с учётом настроек */
-export function speakText(text) {
-  return speak(text, { rate: state.settings.tts_rate, voice: state.settings.tts_voice });
+/** Озвучка с учётом настроек: сначала локальный Piper TTS из /audio/de/, иначе Web Speech API */
+export function speakText(text, opts = {}) {
+  return audioPlayer.play(text, {
+    rate: state.settings.tts_rate,
+    voice: state.settings.tts_voice,
+    ...opts,
+  });
+}
+
+/** Остановить текущую озвучку */
+export function stopAudio() {
+  audioPlayer.stop();
 }
 
 // Модуль offline.js (M6) подключаем лениво: без него приложение не падает
@@ -95,6 +105,7 @@ function applySettings(s) {
   state.settings = { ...DEFAULT_SETTINGS, ...(s || {}) };
   applyTheme(state.settings.theme);
   setPreferredVoice(state.settings.tts_voice);
+  audioPlayer.setPreferredVoice(state.settings.tts_voice);
 }
 
 /** Загрузить настройки с сервера (при ошибке остаются кешированные) */

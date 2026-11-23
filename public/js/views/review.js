@@ -1,10 +1,15 @@
 // Раннер сессии (v2): сложность, автопереходы, компактная оценка, корзина предложений
-import { h, navigate, offline, state, toast, speakText, displayTerm, POS_RU } from '../app.js';
+import { h, navigate, offline, state, toast, speakText, stopAudio, displayTerm, POS_RU } from '../app.js';
 import { postReviews, putSettings, setCardLearned } from '../api.js';
 import { gradeTyped, autoRating } from '/shared/grading.js';
 import { MAX_HINT_STEP } from '/shared/hints.js';
 import { fetchSession, clearCurrent } from './today.js';
 import { voicesReady } from '../tts.js';
+import { createHandsFreeEngine, HF_STATES } from '../services/hands_free_engine.js';
+import { promptForHandsFree } from '../services/hands_free_matcher.js';
+import { audioPlayer } from '../services/audio_player.js';
+import { soundFx } from '../services/sound_fx.js';
+import { createWakeLock } from '../services/wake_lock.js';
 
 const MODE_OK = new Set(['ru_de', 'cloze', 'article', 'sentence']);
 const RESULTS = ['correct', 'almost', 'wrong'];
@@ -12,6 +17,7 @@ const RATINGS = [[1, 'Снова'], [2, 'Трудно'], [3, 'Хорошо'], [4
 const RATING_LABEL = { 1: 'Снова', 2: 'Трудно', 3: 'Хорошо', 4: 'Легко' };
 const DIFFS = [['easy', 'Лёгкий'], ['medium', 'Средний'], ['hard', 'Сложный']];
 const RESTART = Symbol('restart');
+const SWITCH_MODE = Symbol('switch_mode');
 
 const BASKET_KEY = 'sentence_basket';
 const BASKET_MAX = 12;
@@ -185,7 +191,11 @@ export async function mount(container) {
   let keyHandler = null;
   let restartCurrent = null; // не null только пока открыт режим (смена сложности перезапускает карточку)
   let stopLearn = null;
+  let stopFeedback = null;
   let putTimer = null;
+  let handsFreeOn = false;
+  let hfEngine = null;
+  const hfWakeLock = createWakeLock();
 
   const setKeys = (fn) => {
     if (keyHandler) document.removeEventListener('keydown', keyHandler);
@@ -193,16 +203,31 @@ export async function mount(container) {
     if (fn) document.addEventListener('keydown', fn);
   };
   const getDiff = () => (['easy', 'medium', 'hard'].includes(state.settings.difficulty) ? state.settings.difficulty : 'medium');
-  const cleanup = () => {
-    cancelled = true;
+  const disposeHandsFree = (releaseLock = true) => {
+    if (hfEngine) {
+      const eng = hfEngine;
+      hfEngine = null;
+      try { eng.dispose(); } catch { /* ignore */ }
+    }
+    if (releaseLock) hfWakeLock.release().catch(() => {});
+  };
+  const stopActive = () => {
     setKeys(null);
-    if (stopLearn) { stopLearn(); stopLearn = null; }
+    restartCurrent = null;
+    if (stopLearn) { const fn = stopLearn; stopLearn = null; fn(); }
+    if (stopFeedback) { const fn = stopFeedback; stopFeedback = null; fn(); }
+    disposeHandsFree();
     if (putTimer) { // не теряем выбор сложности, если ушли до отправки
       clearTimeout(putTimer);
       putTimer = null;
       putSettings({ difficulty: getDiff() }).catch(() => {});
     }
+    stopAudio();
     try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch { /* ignore */ }
+  };
+  const cleanup = () => {
+    cancelled = true;
+    stopActive();
   };
 
   container.replaceChildren(h('p', { class: 'muted center', text: 'Загружаем очередь…' }));
@@ -235,10 +260,12 @@ export async function mount(container) {
   // ---------- основной цикл ----------
   async function run() {
     let info;
+    let pendingLeft = 0;
     try {
       const o = await offline();
       if (o.flush) await Promise.race([Promise.resolve().then(() => o.flush()).catch(() => {}), sleep(3000)]);
       info = await fetchSession();
+      if (o.pendingCount) pendingLeft = await o.pendingCount().catch(() => 0);
     } catch (e) {
       if (!cancelled) showError((e && e.message) || 'Не удалось загрузить очередь');
       return;
@@ -247,7 +274,10 @@ export async function mount(container) {
 
     const date = String(info.session.date || '');
     const doneKeys = loadDone(date);
-    let queue = info.session.queue.filter(validItem).filter((it) => !doneKeys.has(it.key));
+    // Онлайн при пустой офлайн-очереди доверяем серверу (он уже исключил rating >= 2 и оставил Again);
+    // локальный gt_done_ фильтрует только кешированную офлайн-сессию или неотправленные ответы.
+    const filterLocalDone = info.offline || pendingLeft > 0;
+    let queue = info.session.queue.filter(validItem).filter((it) => !filterLocalDone || !doneKeys.has(it.key));
 
     async function markCardLearned(card, idx) {
       if (!card || !card.id) return;
@@ -294,11 +324,48 @@ export async function mount(container) {
     }
     paintChips();
 
+    const srSupported = typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    const hfBtn = h('button', {
+      class: 'btn sm hf-toggle',
+      type: 'button',
+      'aria-pressed': 'false',
+      title: srSupported ? 'Голосовой режим без касаний экрана' : 'Не поддерживается в этом браузере',
+      text: '🎙 Hands-Free',
+      onclick: () => toggleHandsFree(),
+    });
+    const paintHfBtn = () => {
+      hfBtn.setAttribute('aria-pressed', String(handsFreeOn));
+      hfBtn.classList.toggle('accent', handsFreeOn);
+      hfBtn.textContent = handsFreeOn ? '🎙 Голос: ВКЛ' : '🎙 Hands-Free';
+    };
+    async function toggleHandsFree() {
+      if (!handsFreeOn) {
+        if (!srSupported) {
+          toast('Распознавание речи не поддерживается в этом браузере (нужен Chrome / Android PWA)');
+          return;
+        }
+        // Синхронный прогрев аудио и Wake Lock прямо в жесте пользователя (Android Chrome autoplay)
+        audioPlayer.unlock();
+        soundFx.unlock();
+        hfWakeLock.acquire().catch(() => {});
+        handsFreeOn = true;
+        paintHfBtn();
+        if (stopLearn) { const fn = stopLearn; stopLearn = null; fn(SWITCH_MODE); }
+        else if (stopFeedback) { const fn = stopFeedback; stopFeedback = null; fn(SWITCH_MODE); }
+        else if (restartCurrent) restartCurrent(SWITCH_MODE);
+      } else {
+        handsFreeOn = false;
+        paintHfBtn();
+        disposeHandsFree(true);
+      }
+    }
+
     container.replaceChildren(
       h('div', { class: 'review-top' },
         counter,
         h('div', { class: 'seg', role: 'group', 'aria-label': 'Сложность' }, chipBtns),
-        h('div', { class: 'row gap-xs' },
+        h('div', { class: 'row gap-xs wrap' },
+          hfBtn,
           h('button', {
             class: 'btn sm',
             type: 'button',
@@ -306,6 +373,9 @@ export async function mount(container) {
             title: 'Завершить сессию, подвести итоги и проверить предложения',
             onclick: () => {
               cancelled = true;
+              handsFreeOn = false;
+              paintHfBtn();
+              stopActive();
               showSummary();
             },
           }),
@@ -315,6 +385,9 @@ export async function mount(container) {
             text: '✕ Выйти',
             onclick: async () => {
               cancelled = true;
+              handsFreeOn = false;
+              paintHfBtn();
+              stopActive();
               try {
                 const o = await offline();
                 if (o.flush) await o.flush();
@@ -363,10 +436,11 @@ export async function mount(container) {
           clearInterval(tick);
           stopLearn = null;
           setKeys(null);
+          stopAudio();
           try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch { /* ignore */ }
-          resolve(learned === true);
+          resolve(learned === SWITCH_MODE ? SWITCH_MODE : learned === true);
         }
-        stopLearn = () => go(false);
+        stopLearn = (val = false) => go(val);
 
         const sayBtn = (label, text) => (text
           ? h('button', { class: 'btn small', type: 'button', text: '🔊 ' + label, 'aria-label': 'Озвучить: ' + label, onclick: () => { speakText(text); } })
@@ -462,11 +536,21 @@ export async function mount(container) {
         function finish() {
           if (finished) return;
           finished = true;
+          stopFeedback = null;
           cancelAuto();
           stage.removeEventListener('pointerdown', cancelAuto);
           setKeys(null);
           resolve(selected);
         }
+        stopFeedback = (val = null) => {
+          if (finished) return;
+          finished = true;
+          stopFeedback = null;
+          cancelAuto();
+          stage.removeEventListener('pointerdown', cancelAuto);
+          setKeys(null);
+          resolve(val);
+        };
 
         const learnedBtn = h('button', {
           class: 'btn small ghost', type: 'button', text: '✓ Уже знаю (выучено)',
@@ -512,8 +596,212 @@ export async function mount(container) {
       });
     }
 
+    // ---------- сохранение результата FSRS + повтор после ошибки (общее для ручного и Hands-Free) ----------
+    async function recordFsrsOutcome(item, idx, { rating, result, userAnswer, responseMs, usedHints, answeredAt }) {
+      const baseKey = item._baseKey || item.key;
+      if (!item._requeued) {
+        stats.answered += 1;
+        if (rating > 1) stats.correct += 1;
+      }
+
+      // Первая попытка пишется в FSRS всегда; успешное восстановление после ошибки (rating >= 2)
+      // тоже фиксируем в FSRS, чтобы карточка вышла из Relearning, а повторные промахи не накручивали lapses.
+      if (!item._requeued || rating >= 2) {
+        const effectiveRating = item._requeued ? Math.min(3, rating) : rating;
+        clearCurrent();
+        await saveReview({
+          client_uuid: uuid(),
+          card_id: item.card_id,
+          mode: item.mode,
+          rating: effectiveRating,
+          correct: effectiveRating > 1,
+          response_ms: responseMs === null || responseMs === undefined ? undefined : responseMs,
+          user_answer: userAnswer || undefined,
+          hints_used: usedHints || 0,
+          answered_at: answeredAt || new Date().toISOString(),
+        });
+        // В локальный gt_done_ пишем только успешные (rating >= 2), как и серверный session.js
+        if (effectiveRating >= 2) {
+          doneKeys.add(baseKey);
+          saveDone(date, doneKeys);
+        }
+      }
+
+      const retryCount = item._retryCount || 0;
+      if ((result === 'wrong' || rating === 1) && retryCount < 3) {
+        queue.splice(Math.min(queue.length, idx + 8), 0, {
+          ...item,
+          kind: 'review',
+          key: `${baseKey}#r${retryCount + 1}`,
+          _baseKey: baseKey,
+          _requeued: true,
+          _retryCount: retryCount + 1,
+        });
+      }
+    }
+
+    // ---------- Hands-Free голосовой раннер одной карточки ----------
+    const HF_STATE_LABELS = {
+      [HF_STATES.IDLE]: 'Готов',
+      [HF_STATES.SPEAKING]: '🔊 Озвучиваю…',
+      [HF_STATES.LISTENING]: '🎙 Слушаю…',
+      [HF_STATES.EVALUATING]: '⚙ Проверяю…',
+      [HF_STATES.FEEDBACK]: 'Результат',
+      [HF_STATES.PAUSED]: '⏸ Пауза',
+    };
+    const HF_MODE_LABELS = {
+      ru_de: 'Перевод RU → DE',
+      article: 'Артикль + слово',
+      cloze: 'Пропуск в предложении',
+    };
+
+    async function runHandsFreeItem(item, idx) {
+      const card = item.card;
+      const isSentence = item.kind === 'sentence' || item.mode === 'sentence';
+      if (isSentence) {
+        toast('Задание «Предложение» пропущено в Hands-Free (требует ввода текста)');
+        return;
+      }
+
+      const pill = h('span', { class: 'hf-pill', text: 'Подготовка…' });
+      const wakeChip = h('span', { class: 'chip', hidden: true, text: '☀ Экран активен' });
+      const statusNote = h('div', { class: 'muted center hf-status-note', role: 'status', 'aria-live': 'polite' });
+      const transcriptEl = h('div', { class: 'hf-transcript muted center', text: '' });
+      const feedbackEl = h('div', { class: 'hf-feedback', hidden: true });
+
+      const pauseBtn = h('button', {
+        class: 'btn primary lg hf-big-btn',
+        style: 'flex: 2;',
+        type: 'button',
+        text: '⏸ Пауза',
+        onclick: () => {
+          if (!hfEngine) return;
+          if (hfEngine.state === HF_STATES.PAUSED) hfEngine.resume();
+          else hfEngine.pause();
+        },
+      });
+      const repeatBtn = h('button', {
+        class: 'btn lg hf-big-btn',
+        type: 'button',
+        'aria-label': 'Повторить озвучку',
+        text: '🔊 Повтор',
+        onclick: () => { hfEngine && hfEngine.repeatCurrent(); },
+      });
+      const skipBtn = h('button', {
+        class: 'btn lg hf-big-btn',
+        type: 'button',
+        'aria-label': 'Пропустить карточку',
+        text: '⏭ Пропуск',
+        onclick: () => { hfEngine && hfEngine.skipCurrent(); },
+      });
+
+      function syncUiState(st, detail) {
+        pill.textContent = HF_STATE_LABELS[st] || st;
+        pill.className = 'hf-pill hf-st-' + String(st || 'IDLE').toLowerCase();
+        if (detail && detail.statusText !== undefined) statusNote.textContent = detail.statusText;
+        const paused = st === HF_STATES.PAUSED;
+        pauseBtn.textContent = paused ? '▶ Продолжить' : '⏸ Пауза';
+        pauseBtn.classList.toggle('accent', paused);
+        pauseBtn.classList.toggle('primary', !paused);
+        wakeChip.hidden = !(hfEngine && hfEngine.wakeLockActive);
+      }
+
+      const callbacks = {
+        onStateChange: syncUiState,
+        onInterim: (txt) => {
+          transcriptEl.textContent = txt ? `Вы сказали: «${txt}»` : '';
+        },
+        onFeedback: ({ kind, heard, expected }) => {
+          feedbackEl.hidden = false;
+          feedbackEl.className = 'hf-feedback feedback ' + (kind === 'correct' ? 'correct' : kind === 'wrong' ? 'wrong' : 'almost');
+          const title = kind === 'correct' ? '✓ Верно (Хорошо)'
+            : kind === 'hard' ? '⚡ Оценка: Трудно'
+              : kind === 'skip' ? '⏭ Пропущено'
+                : `✗ Правильно: ${expected}`;
+          feedbackEl.replaceChildren(
+            h('div', { class: 'fb-title', lang: 'de', text: title }),
+            heard ? h('div', { class: 'muted', text: `Распознано: «${heard}»` }) : null,
+          );
+        },
+        onError: (msg) => { toast(msg, 4500); },
+      };
+
+      // Пересоздаём движок с актуальными UI-колбэками на эту карточку; Wake Lock живёт на всю сессию
+      disposeHandsFree(false);
+      hfEngine = createHandsFreeEngine(callbacks, { wakeLock: { acquire: () => hfWakeLock.acquire(), release: async () => {}, isActive: () => hfWakeLock.isActive() } });
+      await hfEngine.start();
+      if (cancelled) return;
+      if (!handsFreeOn) return SWITCH_MODE;
+
+      // Новое слово в Hands-Free: озвучиваем слово и пример, затем сразу к голосовой проверке
+      if (item.kind === 'new' && !learnSeen.has(item.card_id)) {
+        learnSeen.add(item.card_id);
+        const art = ['der', 'die', 'das'].includes(card.article) ? card.article : 'none';
+        stage.replaceChildren(
+          h('div', { class: 'hf-stage stack' },
+            h('div', { class: 'row wrap', style: 'justify-content: space-between; align-items: center;' }, pill, wakeChip),
+            h('div', {
+              class: 'card-box stack center hf-card',
+              onclick: () => { if (hfEngine) hfEngine.state === HF_STATES.PAUSED ? hfEngine.resume() : hfEngine.pause(); },
+            },
+              h('span', { class: 'chip accent', text: 'Новое слово · Hands-Free' }),
+              h('div', { class: 'big-term article-' + art, lang: 'de', text: displayTerm(card) }),
+              h('div', { class: 'translation', text: card.translation || '' }),
+              card.example ? h('div', { class: 'example', lang: 'de', text: card.example }) : null,
+              statusNote),
+            h('div', { class: 'hf-controls' }, pauseBtn, repeatBtn, skipBtn))
+        );
+        const learnRes = await hfEngine.speakLearnCard(card);
+        if (cancelled) return;
+        if (!handsFreeOn) return SWITCH_MODE;
+        if (learnRes && learnRes.stopped) return;
+      }
+
+      const prompt = promptForHandsFree(item);
+      feedbackEl.hidden = true;
+      transcriptEl.textContent = '';
+
+      stage.replaceChildren(
+        h('div', { class: 'hf-stage stack' },
+          h('div', { class: 'row wrap', style: 'justify-content: space-between; align-items: center;' }, pill, wakeChip),
+          h('div', {
+            class: 'card-box stack center hf-card',
+            title: 'Нажмите в любое место карточки для паузы/продолжения',
+            onclick: () => { if (hfEngine) hfEngine.state === HF_STATES.PAUSED ? hfEngine.resume() : hfEngine.pause(); },
+          },
+            h('span', { class: 'chip', text: HF_MODE_LABELS[item.mode] || item.mode }),
+            h('div', { class: 'prompt', lang: item.mode === 'article' || item.mode === 'cloze' ? 'de' : 'ru', text: prompt.displayTitle }),
+            prompt.displaySubtitle ? h('div', { class: 'muted', text: prompt.displaySubtitle }) : null,
+            h('div', { class: 'muted', style: 'font-size: var(--fs-sm);', text: prompt.hint }),
+            statusNote,
+            transcriptEl,
+            feedbackEl),
+          h('div', { class: 'muted center hf-commands', text: 'Команды: «weiter» · «nochmal» · «schwer» · «stopp»' }),
+          h('div', { class: 'hf-controls' }, pauseBtn, repeatBtn, skipBtn))
+      );
+
+      const outcome = await hfEngine.runCard({ item, card });
+      if (cancelled) return;
+      if (!handsFreeOn) return SWITCH_MODE;
+      if (!outcome || outcome.action === 'skip' || outcome.action === 'stopped') return;
+
+      if (outcome.action === 'rated' && outcome.rating >= 1 && outcome.rating <= 4) {
+        await recordFsrsOutcome(item, idx, {
+          rating: outcome.rating,
+          result: outcome.rating === 1 ? 'wrong' : 'correct',
+          userAnswer: outcome.userAnswer || '',
+          responseMs: outcome.responseMs ?? null,
+          usedHints: 0,
+          answeredAt: new Date().toISOString(),
+        });
+      }
+    }
+
     // ---------- один элемент очереди ----------
     async function runItem(item, idx) {
+      if (handsFreeOn) {
+        return runHandsFreeItem(item, idx);
+      }
       const card = item.card;
       const mod = await loadMode(item.mode);
       if (!mod || typeof mod.mount !== 'function') {
@@ -525,6 +813,10 @@ export async function mount(container) {
         learnSeen.add(item.card_id);
         const alreadyKnown = await showLearn(card);
         if (cancelled) return;
+        if (alreadyKnown === SWITCH_MODE) {
+          learnSeen.delete(item.card_id);
+          return SWITCH_MODE;
+        }
         if (alreadyKnown) {
           stats.answered += 1;
           stats.correct += 1;
@@ -540,6 +832,7 @@ export async function mount(container) {
 
       // Цикл нужен для перезапуска карточки при смене сложности
       for (;;) {
+        hints = 0; // сбрасываем подсказки при перезапуске с другой сложностью
         const diff = getDiff();
         const host = h('div', { class: 'mode-host' });
         stage.replaceChildren(host);
@@ -552,7 +845,7 @@ export async function mount(container) {
           registerHint: () => { hints += 1; }, // необязательное расширение
         };
         const restartP = new Promise((resolve) => {
-          restartCurrent = isSentence ? null : () => resolve(RESTART);
+          restartCurrent = (sig = RESTART) => resolve(sig);
         });
         const mp = Promise.resolve().then(() => mod.mount(host, item, modeCtx));
         mp.catch(() => {}); // покинутый режим не должен давать unhandled rejection
@@ -566,29 +859,18 @@ export async function mount(container) {
         }
         restartCurrent = null;
         if (cancelled) return;
-        if (r === RESTART) continue;
+        if (r === SWITCH_MODE) return SWITCH_MODE;
+        if (r === RESTART) {
+          if (isSentence) continue;
+          continue;
+        }
         res = r;
         usedDiff = diff;
         break;
       }
 
-      // Предложения (sentence) не оцениваются и не пишутся в FSRS
-      if (isSentence) {
-        const shownAt = performance.now();
-        const nextBtn = h('button', { class: 'btn primary block next-btn', type: 'button', text: 'Далее' });
-        stage.append(nextBtn);
-        await new Promise((resolve) => {
-          const done = () => { setKeys(null); resolve(); };
-          nextBtn.addEventListener('click', done, { once: true });
-          setKeys((e) => {
-            const t = e.target;
-            if (t && /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(t.tagName)) return;
-            if (performance.now() - shownAt < 400) return;
-            if (e.key === 'Enter') { e.preventDefault(); done(); }
-          });
-        });
-        return;
-      }
+      // Предложения (sentence) уже показывают свою кнопку «Дальше» и не пишутся в FSRS
+      if (isSentence) return;
 
       const answeredAt = new Date().toISOString();
       const result = RESULTS.includes(res && res.result) ? res.result : 'wrong';
@@ -611,34 +893,18 @@ export async function mount(container) {
       if (!(auto >= 1 && auto <= 4)) auto = result === 'wrong' ? 1 : result === 'almost' ? 2 : 3;
 
       const rating = await showFeedbackAndRate({ result, note, expected, diff, card, auto, usedHints });
-      if (cancelled) return;
+      if (cancelled || rating === null) return;
+      if (rating === SWITCH_MODE) return SWITCH_MODE;
       if (rating === 'learned') {
-        stats.answered += 1;
-        stats.correct += 1;
+        if (!item._requeued) {
+          stats.answered += 1;
+          stats.correct += 1;
+        }
         await markCardLearned(card, idx);
         return;
       }
 
-      stats.answered += 1;
-      if (rating > 1) stats.correct += 1;
-
-      // Повтор после ошибки — только тренировка, в FSRS не пишется
-      if (!item._requeued) {
-        clearCurrent();
-        await saveReview({
-          client_uuid: uuid(),
-          card_id: item.card_id,
-          mode: item.mode,
-          rating,
-          correct: rating > 1,
-          response_ms: responseMs === null ? undefined : responseMs,
-          user_answer: userAnswer || undefined,
-          hints_used: usedHints,
-          answered_at: answeredAt,
-        });
-        doneKeys.add(item.key);
-        saveDone(date, doneKeys);
-      }
+      await recordFsrsOutcome(item, idx, { rating, result, userAnswer, responseMs, usedHints, answeredAt });
 
       // Второй шаг сложного ru_de: предложение уходит в корзину, а не оценивается сейчас
       if (typeof res.followUp === 'function' && !item._requeued && card.example && card.example_translation && !cancelled) {
@@ -656,10 +922,6 @@ export async function mount(container) {
             added_at: new Date().toISOString(),
           });
         }
-      }
-
-      if ((result === 'wrong' || rating === 1) && !item._requeued) {
-        queue.splice(Math.min(queue.length, idx + 8), 0, { ...item, kind: 'review', key: item.key + '#r', _requeued: true });
       }
     }
 
@@ -739,12 +1001,16 @@ export async function mount(container) {
     for (let idx = 0; idx < queue.length && !cancelled; idx++) {
       updateProgress(idx);
       try {
-        await runItem(queue[idx], idx);
+        const res = await runItem(queue[idx], idx);
+        if (res === SWITCH_MODE && !cancelled) {
+          idx -= 1; // переигрываем эту же карточку после переключения Hands-Free
+        }
       } catch {
         if (cancelled) return;
         toast('Не удалось показать карточку, пропускаем');
       }
     }
+    disposeHandsFree();
     if (!cancelled) showSummary();
   }
 }

@@ -1,6 +1,6 @@
 // Service worker: /js, /css, /shared — stale-while-revalidate; остальная статика — cache-first; /api — только сеть.
 // ВАЖНО: при каждом деплое с изменениями в public/ или shared/ увеличивайте VERSION.
-const VERSION = '6';
+const VERSION = '7';
 const CACHE_PREFIX = 'german-trainer-';
 const CACHE_NAME = CACHE_PREFIX + VERSION;
 
@@ -18,6 +18,11 @@ const PRECACHE_URLS = [
   '/js/api.js',
   '/js/api2.js',
   '/js/tts.js',
+  '/js/services/audio_player.js',
+  '/js/services/hands_free_matcher.js',
+  '/js/services/hands_free_engine.js',
+  '/js/services/sound_fx.js',
+  '/js/services/wake_lock.js',
   '/js/offline.js',
   '/js/views/today.js',
   '/js/views/plan.js',
@@ -27,7 +32,7 @@ const PRECACHE_URLS = [
   '/shared/grading.js',
 ];
 
-const SWR_PREFIXES = ['/js/', '/css/', '/shared/'];
+const SWR_PREFIXES = ['/js/', '/css/', '/shared/', '/audio/de/manifest.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {

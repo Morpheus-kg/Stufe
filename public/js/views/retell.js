@@ -1,8 +1,11 @@
-// Пересказ: русский текст -> немецкий текст (Schreiben). Один вызов ИИ на оценку.
+// Пересказ: русский текст -> немецкий текст (Schreiben).
+// Быстрая проверка LanguageTool + глубокий смысловой/стилистический разбор через LLM API.
 import { h, toast, navigate as nav } from '../app.js';
 import { retellTask, retellEvaluate } from '../api2.js';
 import { gradeSentence } from '/shared/grading.js';
 import { renderErrors } from '../ui/error_list.js';
+import { languageToolService } from '../services/languagetool_service.js';
+import { renderLanguageToolPanel } from '../ui/lt_panel.js';
 
 const LS_TASK = 'retell_current';
 const draftKey = (id) => `retell_draft_${id}`;
@@ -122,7 +125,9 @@ export function mount(container, ctx = {}) {
     const counter = h('span', { class: 'muted' });
     const clock = h('span', { class: 'muted' });
     const status = h('p', { class: 'muted', role: 'status' });
-    const submit = h('button', { class: 'btn primary', type: 'button', text: 'Завершить и проверить' });
+    const ltBox = h('div', { class: 'stack' });
+    const ltBtn = h('button', { class: 'btn', type: 'button', text: '⚡ Быстрая проверка LT' });
+    const submit = h('button', { class: 'btn primary', type: 'button', text: '🤖 Глубокий разбор ИИ' });
 
     const upd = () => {
       const w = countWords(ta.value);
@@ -141,21 +146,64 @@ export function mount(container, ctx = {}) {
     tick(); upd();
     timer = setInterval(tick, 1000);
 
+    async function runQuickLt(sourceText, allowApply) {
+      const ltRes = await languageToolService.check(sourceText, { language: 'de-DE' });
+      if (!alive) return ltRes;
+      renderLanguageToolPanel(ltBox, {
+        text: sourceText,
+        result: ltRes,
+        onApplyReplacement: allowApply ? (m, rep) => {
+          const cur = ta.value;
+          if (cur.slice(m.offset, m.offset + m.length) !== m.bad) {
+            toast('Текст изменился — запустите проверку LT ещё раз');
+            return;
+          }
+          ta.value = cur.slice(0, m.offset) + rep + cur.slice(m.offset + m.length);
+          lsSet(key, ta.value);
+          upd();
+          // Перепроверяем обновлённый текст, чтобы смещения оставались точными
+          runQuickLt(ta.value, true).catch(() => {});
+        } : undefined,
+      });
+      return ltRes;
+    }
+
+    ltBtn.addEventListener('click', async () => {
+      const text = ta.value.trim();
+      if (text.length < 5) { status.textContent = 'Напишите хотя бы пару слов для быстрой проверки.'; return; }
+      lsSet(key, ta.value);
+      ltBtn.disabled = true;
+      status.textContent = 'Быстрая проверка LanguageTool…';
+      try {
+        await runQuickLt(ta.value, true);
+        if (!alive) return;
+        status.textContent = '';
+      } finally {
+        if (alive) ltBtn.disabled = false;
+      }
+    });
+
     submit.addEventListener('click', async () => {
       const text = ta.value.trim();
       if (text.length < 30) { status.textContent = 'Напишите хотя бы 30 символов.'; return; }
       lsSet(key, ta.value);
-      submit.disabled = true; ta.disabled = true;
-      status.textContent = 'Проверяю (это может занять до минуты)…';
+      submit.disabled = true; ltBtn.disabled = true; ta.disabled = true;
+      status.textContent = 'ИИ готовит глубокий разбор (параллельно работает LanguageTool)…';
       const seconds = Math.max(0, Math.round((Date.now() - (task.startedAt || Date.now())) / 1000));
+
+      // Параллельная неблокирующая проверка LanguageTool (не влияет на LLM API и не роняет экран)
+      const ltPromise = runQuickLt(text, false).catch(() => null);
+
       try {
         const evalBody = { task_id: task.id, text: text.slice(0, 3000), seconds };
         if (task.provider && task.provider !== 'auto') evalBody.provider = task.provider;
         const res = await retellEvaluate(evalBody);
         if (!alive) return;
+        const ltRes = await Promise.race([ltPromise, new Promise((r) => setTimeout(() => r(null), 500))]);
+        if (!alive) return;
         stopTimer();
         lsDel(key); lsDel(LS_TASK);
-        renderResult(res, text, task);
+        renderResult(res, text, task, ltRes);
       } catch (e) {
         if (!alive) return;
         if (e && e.status === 409) {
@@ -164,7 +212,7 @@ export function mount(container, ctx = {}) {
           return;
         }
         status.textContent = errMsg(e);
-        submit.disabled = false; ta.disabled = false;
+        submit.disabled = false; ltBtn.disabled = false; ta.disabled = false;
       }
     });
 
@@ -175,13 +223,16 @@ export function mount(container, ctx = {}) {
       ta,
       h('div', { class: 'row' }, counter, ' · ', clock),
       status,
-      h('div', { class: 'row' }, submit,
+      h('div', { class: 'row wrap', style: 'gap: var(--s2);' },
+        ltBtn,
+        submit,
         h('button', {
-          class: 'btn', type: 'button', text: 'Отменить', onclick: () => {
+          class: 'btn ghost', type: 'button', text: 'Отменить', onclick: () => {
             if (!confirm('Выбросить этот текст и черновик?')) return;
             stopTimer(); lsDel(key); lsDel(LS_TASK); renderSetup();
           }
         })),
+      ltBox,
     );
     try { ta.focus({ preventScroll: true }); } catch { /* ignore */ }
   }
@@ -210,7 +261,7 @@ export function mount(container, ctx = {}) {
     return box;
   }
 
-  function renderResult(r, userText, task) {
+  function renderResult(r, userText, task, ltResult = null) {
     const res = r && typeof r === 'object' ? r : {};
     const crit = res.criteria && typeof res.criteria === 'object' ? res.criteria : {};
     const kps = Array.isArray(res.key_points) ? res.key_points : [];
@@ -223,6 +274,10 @@ export function mount(container, ctx = {}) {
     });
     const errBox = h('div');
     renderErrors(errBox, res.errors, { sentence: undefined });
+    const ltResultBox = h('div', { class: 'stack' });
+    if (ltResult) {
+      renderLanguageToolPanel(ltResultBox, { text: userText, result: ltResult });
+    }
 
     root.replaceChildren(
       h('div', { class: 'card-box stack' },
@@ -236,10 +291,11 @@ export function mount(container, ctx = {}) {
         (k && k.conveyed ? '✓ ' : '✗ '), String((k && k.text_ru) || ''),
         k && k.comment_ru ? h('span', { class: 'muted', text: ' — ' + String(k.comment_ru) }) : null)))
         : h('p', { class: 'muted', text: 'Нет данных.' }),
-      h('h3', { text: 'Ваш текст с правками' }),
+      h('h3', { text: 'Ваш текст с правками (ИИ)' }),
       res.corrected_text ? renderDiff(userText, String(res.corrected_text)) : h('p', { class: 'muted', text: 'Правок нет.' }),
-      h('h3', { text: 'Ошибки' }),
+      h('h3', { text: 'Ошибки (разбор ИИ)' }),
       errBox,
+      ltResult ? ltResultBox : null,
       imps.length ? h('h3', { text: 'Над чем поработать' }) : null,
       imps.length ? h('ul', {}, imps.slice(0, 3).map((t) => h('li', { text: String(t) }))) : null,
       res.model_text ? modelBtn : null, modelBox,

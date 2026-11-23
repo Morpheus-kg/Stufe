@@ -46,6 +46,7 @@ export function validChoices(item, correctForms) {
 export function keypadFor(input, isDone) {
   return h('div', { class: 'keypad' }, ['ä', 'ö', 'ü', 'ß'].map((ch) => h('button', {
     class: 'btn key', type: 'button', text: ch, 'aria-label': 'Вставить ' + ch,
+    onpointerdown: (e) => e.preventDefault(),
     onmousedown: (e) => e.preventDefault(),
     onclick: () => {
       if (isDone()) return;

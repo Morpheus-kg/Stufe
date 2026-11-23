@@ -1,20 +1,31 @@
 // Режим article (v2): артикль кнопками der/die/das (сравнение с card.article);
-// множественное число — отдельно через ctx.grade (gradeTyped(answer, card.plural))
+// множественное число — отдельно через ctx.grade (с раскрытием сокращений '-en', '¨-e', '-')
 //   лёгкий: перевод виден, plural не спрашиваем
 //   средний: перевод виден, plural вводим (с подсказками)
 //   сложный: только немецкое слово, plural обязателен, без подсказок
 import { h } from '../app.js';
+import { resolvePlural } from '/shared/grading.js';
 import { mountTyped, difficultyOf } from './ru_de.js';
 
 const ARTICLES = ['der', 'die', 'das'];
 
-const pluralOf = (c) => String((c && c.plural) ?? '').trim();
+const pluralOf = (c) => resolvePlural(c && c.term, c && c.plural);
+const stripLeadingDie = (s) => String(s ?? '').trim().replace(/^die\s+/i, '').trim();
 
-/** Ожидаемый ответ для обратной связи; в лёгком режиме plural не спрашивается */
+/** Ожидаемый ответ для обратной связи и озвучки: всегда полная фраза (с артиклем), не голый артикль */
 export function expected(item, userAnswer, difficulty) {
   const c = (item && item.card) || {};
+  const singular = c.article && c.term ? `${c.article} ${c.term}` : String(c.article || '');
   const pl = pluralOf(c);
-  return pl && difficulty !== 'easy' ? `${c.article} ${pl}` : String(c.article || '');
+  if (!pl || difficulty === 'easy') return singular;
+  // Если шаг 1 (артикль) провален, userAnswer приходит как "<chosen> <term>"
+  const ans = String(userAnswer ?? '').trim();
+  const termLow = String(c.term ?? '').trim().toLowerCase();
+  if (ans && termLow && ans.toLowerCase().endsWith(' ' + termLow)) {
+    const first = ans.split(/\s+/)[0].toLowerCase();
+    if (ARTICLES.includes(first) && first !== c.article) return singular;
+  }
+  return `die ${pl}`;
 }
 
 export async function mount(container, item, ctx) {
@@ -58,29 +69,37 @@ export async function mount(container, item, ctx) {
 
   const articleOk = chosen === c.article;
 
-  if (!askPlural) {
+  // Если plural не спрашивается или артикль уже неверный — сразу завершаем без лишнего шага
+  if (!askPlural || !articleOk) {
     return {
       result: articleOk ? 'correct' : 'wrong',
-      userAnswer: chosen,
+      userAnswer: `${chosen} ${c.term}`,
       responseMs: Math.round(performance.now() - t0),
       hints: 0,
     };
   }
 
-  // Шаг 2: множественное число (проверка отдельно, неверный артикль всегда даёт wrong)
-  container.append(
+  // Шаг 2: множественное число (заменяем контент, чтобы не дублировать карточку на экране телефона)
+  container.replaceChildren(
     h('div', { class: 'card-box stack center' },
-      h('div', { class: 'muted', text: `Вы выбрали: ${chosen}. Теперь введите множественное число` }),
-      h('div', { class: 'prompt', lang: 'de', text: c.term })
+      h('div', { class: 'row center wrap' },
+        h('span', { class: 'chip accent', lang: 'de', text: `✓ ${chosen} ${c.term}` })),
+      h('div', { class: 'muted', text: 'Введите множественное число (die …)' }),
+      diff !== 'hard' && c.translation ? h('div', { class: 'muted', text: c.translation }) : null
     )
   );
+  const pluralCtx = {
+    ...ctx,
+    grade: (ans, exp) => ctx.grade(stripLeadingDie(ans), exp),
+  };
   const pr = await mountTyped(container, {
-    expected: plural, ctx, label: 'Множественное число', hints: diff === 'medium',
+    expected: plural, ctx: pluralCtx, label: 'Множественное число', hints: diff === 'medium',
   });
 
+  const cleanPl = stripLeadingDie(pr.userAnswer);
   return {
-    result: articleOk ? pr.result : 'wrong',
-    userAnswer: `${chosen} ${pr.userAnswer}`.trim(),
+    result: pr.result,
+    userAnswer: cleanPl ? `die ${cleanPl}` : '',
     responseMs: Math.round(performance.now() - t0),
     hints: pr.hints,
   };
